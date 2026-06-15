@@ -1,4 +1,8 @@
-import { DEFAULT_LUA_PERSONA_ID, PLAN_CONTENT_EVENT_NAME } from "@/config/constants";
+import {
+  DEFAULT_LUA_PERSONA_ID,
+  GENERATE_ASSETS_EVENT_NAME,
+  PLAN_CONTENT_EVENT_NAME,
+} from "@/config/constants";
 import { inngest } from "@/inngest/client";
 import {
   createContentPlan,
@@ -267,6 +271,16 @@ export const planContent = inngest.createFunction(
           message: "Updated content job to PLANNED.",
         });
       });
+
+      await step.run("enqueue-generate-assets", () =>
+        inngest.send({
+          name: GENERATE_ASSETS_EVENT_NAME,
+          data: {
+            jobId: job.id,
+            source: "plan_content",
+          },
+        }),
+      );
 
       return {
         jobId: job.id,

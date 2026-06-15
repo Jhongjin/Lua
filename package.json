@@ -8,10 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "supabase:types": "npx supabase gen types typescript --local > src/types/database.ts"
+    "supabase:types": "npx supabase gen types typescript --linked > src/types/database.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@fal-ai/client": "^1.10.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "inngest": "^4.5.1",

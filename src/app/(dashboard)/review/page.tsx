@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { JOB_STATUSES, type JobStatus } from "@/config/constants";
-import { triggerManualContentPlan } from "@/app/(dashboard)/review/actions";
+import {
+  triggerManualContentPlan,
+  uploadManualImagesForJob,
+} from "@/app/(dashboard)/review/actions";
 import { createAuthenticatedServerClient } from "@/lib/supabase/server";
 
 type ReviewPageProps = {
@@ -38,7 +41,7 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
   let query = supabase
     .from("content_jobs")
     .select(
-      "id,status,title,concept,axis,format,image_prompt,instagram_caption,youtube_title,hashtags_instagram,scheduled_at,created_at,retry_count,max_retries,error_message",
+      "id,status,title,concept,axis,format,image_source,image_prompt,instagram_caption,youtube_title,hashtags_instagram,final_image_urls,scheduled_at,created_at,retry_count,max_retries,error_message,review_note",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -120,6 +123,9 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                 <tr className="border-b border-border last:border-0" key={job.id}>
                   <td className="px-4 py-4 align-top font-mono text-xs">
                     {job.status}
+                    <div className="mt-2 rounded border border-border bg-background px-2 py-1 text-[11px] text-muted">
+                      {job.image_source}
+                    </div>
                   </td>
                   <td className="max-w-lg px-4 py-4 align-top">
                     <div className="font-medium">
@@ -158,6 +164,47 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                     <div className="mt-2 font-mono text-xs text-muted">
                       {formatDate(job.created_at)}
                     </div>
+                    {job.review_note ? (
+                      <div className="mt-2 text-sm text-muted">{job.review_note}</div>
+                    ) : null}
+                    {job.final_image_urls?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {job.final_image_urls.map((url, index) => (
+                          <a
+                            className="rounded border border-border bg-background px-2 py-1 text-xs text-muted hover:text-foreground"
+                            href={url}
+                            key={url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Final {index + 1}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                    {job.image_source === "manual" &&
+                    ["PLANNED", "FAILED"].includes(job.status) &&
+                    ["image", "carousel"].includes(job.format ?? "") ? (
+                      <form
+                        action={uploadManualImagesForJob}
+                        className="mt-3 flex flex-wrap items-center gap-2"
+                      >
+                        <input name="jobId" type="hidden" value={job.id} />
+                        <input
+                          accept="image/*"
+                          className="max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm"
+                          multiple={job.format === "carousel"}
+                          name="images"
+                          type="file"
+                        />
+                        <button
+                          className="h-9 rounded-md bg-accent px-3 text-sm font-semibold text-accent-foreground transition hover:brightness-95"
+                          type="submit"
+                        >
+                          이미지 업로드
+                        </button>
+                      </form>
+                    ) : null}
                   </td>
                   <td className="px-4 py-4 align-top">{job.axis ?? "-"}</td>
                   <td className="px-4 py-4 align-top">{job.format ?? "-"}</td>

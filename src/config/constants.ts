@@ -39,6 +39,9 @@ export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 export const ASSET_TYPES = ["image", "video"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
+export const IMAGE_SOURCES = ["manual", "hedra", "fal", "auto"] as const;
+export type ImageSource = (typeof IMAGE_SOURCES)[number];
+
 export const PLATFORMS = ["instagram", "youtube", "tiktok", "x"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
@@ -56,3 +59,10 @@ export const DEFAULT_LUA_PERSONA_ID =
   "11111111-1111-4111-8111-111111111111";
 
 export const PLAN_CONTENT_EVENT_NAME = "lua/content.plan.requested";
+export const GENERATE_ASSETS_EVENT_NAME = "lua/assets.generate.requested";
+export const EDIT_CONTENT_EVENT_NAME = "lua/content.edit.requested";
+
+export const ASSET_STORAGE_BUCKET = "lua-assets";
+export const MIN_IMAGE_WIDTH = 720;
+export const MIN_IMAGE_HEIGHT = 720;
+export const REQUIRED_CAROUSEL_IMAGE_COUNT = 2;
