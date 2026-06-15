@@ -36,8 +36,16 @@ npx supabase db reset
 
 ```bash
 npx supabase link --project-ref <project-ref>
-npx supabase db push
-npx supabase db seed
+npx supabase db push --include-seed
+```
+
+`supabase link`가 권한 문제로 실패하면 Supabase Dashboard의 SQL Editor에서
+`supabase/migrations/0001_initial_schema.sql`을 먼저 실행하고,
+이어서 `supabase/seed.sql`을 실행합니다. 또는 Database Settings에서 connection
+string을 복사해 아래처럼 Management API를 우회할 수 있습니다.
+
+```bash
+npx supabase db push --db-url "<postgres-connection-string>" --include-seed
 ```
 
 4. DB 타입을 갱신합니다.
