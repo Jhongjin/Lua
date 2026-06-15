@@ -54,16 +54,16 @@ insert into prompt_templates (
 
 [금지사항] 정치·종교·논쟁 이슈, 실존 인물·브랜드 비방, 단정적 전문 조언, 자기비하·비현실적 신체 기준 조장, 과한 광고체.
 
-[출력 형식] 반드시 아래 JSON 스키마를 그대로 따르는 유효한 JSON만 출력하세요. 설명 문장을 덧붙이지 마세요.
+[출력 형식] 반드시 아래 JSON 스키마를 그대로 따르는 유효한 JSON만 출력하세요. 설명 문장을 덧붙이지 마세요. 이 JSON의 필드 집합은 DB content_jobs 기획 컬럼, src/types/content.ts의 ContentPlan 타입, prompt_templates v1.0 출력 계약이 서로 동일하게 유지되어야 합니다.
 
-{ "title": "콘텐츠 제목(유튜브용)", "concept": "한 줄 콘셉트 설명", "content_axis": "일상|오피스|음식|뷰티 중 하나", "format": "image|carousel|reels", "image_prompt": "이미지 생성 프롬프트(영어, 동일 인물·다크 브라운 헤어·폰 스냅·현실적 피부질감 키워드 포함)", "video_prompt": "영상 생성 프롬프트(영어, 미세한 움직임·고정 카메라·no speech·BGM 무드 포함, reels일 때만)", "captions_on_screen": ["화면 자막 1", "화면 자막 2"], "instagram_caption": "인스타용 캡션(구어체, 질문형 마무리)", "youtube_description": "유튜브용 설명(검색 키워드 포함, AI 고지 포함)", "hashtags_instagram": ["태그", "..."], "hashtags_youtube": ["#shorts", "..."], "best_post_time": "권장 게시 시간대", "ai_disclosure": true }$prompt$,
+{ "title": "내부 식별용 제목", "concept": "한 줄 콘셉트 설명", "axis": "daily|office|food|beauty 중 하나", "format": "image|carousel|reels", "image_prompt": "이미지 생성 프롬프트(영어, 동일 인물·다크 브라운 헤어·폰 스냅·현실적 피부질감 키워드 포함)", "video_prompt": "영상 생성 프롬프트(영어, 미세한 움직임·고정 카메라·no speech·BGM 무드 포함, reels일 때만)", "captions_on_screen": ["화면 자막 1", "화면 자막 2"], "instagram_caption": "인스타용 캡션(구어체, 질문형 마무리)", "youtube_title": "유튜브용 공개 제목", "youtube_description": "유튜브용 설명(검색 키워드 포함, AI 고지 포함)", "hashtags_instagram": ["태그", "..."], "hashtags_youtube": ["#shorts", "..."], "best_post_time": "권장 게시 시간대", "ai_disclosure": true }$prompt$,
   '{
     "type": "object",
     "additionalProperties": false,
     "required": [
       "title",
       "concept",
-      "content_axis",
+      "axis",
       "format",
       "image_prompt",
       "video_prompt",
@@ -77,15 +77,15 @@ insert into prompt_templates (
       "ai_disclosure"
     ],
     "properties": {
-      "title": { "type": "string" },
+      "title": { "type": "string", "description": "내부 식별용 제목" },
       "concept": { "type": "string" },
-      "content_axis": { "type": "string", "enum": ["daily", "office", "food", "beauty"] },
+      "axis": { "type": "string", "enum": ["daily", "office", "food", "beauty"], "description": "content_jobs.axis와 동일한 콘텐츠 축" },
       "format": { "type": "string", "enum": ["image", "carousel", "reels"] },
       "image_prompt": { "type": "string" },
       "video_prompt": { "type": "string" },
       "captions_on_screen": { "type": "array", "items": { "type": "string" } },
       "instagram_caption": { "type": "string" },
-      "youtube_title": { "type": "string" },
+      "youtube_title": { "type": "string", "description": "유튜브용 공개 제목" },
       "youtube_description": { "type": "string" },
       "hashtags_instagram": { "type": "array", "items": { "type": "string" } },
       "hashtags_youtube": { "type": "array", "items": { "type": "string" } },
