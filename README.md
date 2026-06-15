@@ -115,10 +115,11 @@ Production 자동 생성에는 아래 서버 환경변수가 필요합니다.
 HEDRA_API_KEY=
 FAL_API_KEY=
 FAL_IMAGE_MODEL=
+FAL_REFERENCE_IMAGE_MODEL=
 HEDRA_IMAGE_MODEL_ID=
 ```
 
-`FAL_IMAGE_MODEL`, `HEDRA_IMAGE_MODEL_ID`는 선택 값입니다. API 키가 없을 때는 수동 업로드 경로만 검증할 수 있습니다.
+`FAL_IMAGE_MODEL`, `FAL_REFERENCE_IMAGE_MODEL`, `HEDRA_IMAGE_MODEL_ID`는 선택 값입니다. Hedra는 기본적으로 공식 예제의 text-to-image 모델을 우선 선택하고, fal은 `fal-ai/flux/schnell`을 기본 text-to-image 모델로 사용합니다. API 키가 없을 때는 수동 업로드 경로만 검증할 수 있습니다.
 
 ## Verification
 

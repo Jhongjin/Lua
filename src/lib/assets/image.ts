@@ -38,10 +38,26 @@ type GenerateInput = {
 const HEDRA_BASE_URL = "https://api.hedra.com/web-app/public";
 const DEFAULT_HEDRA_TIMEOUT_MS = 180_000;
 const DEFAULT_FAL_TIMEOUT_MS = 180_000;
-const DEFAULT_FAL_TEXT_MODEL = "fal-ai/nano-banana-2";
+const DEFAULT_HEDRA_TEXT_TO_IMAGE_MODEL_ID =
+  "a66300b4-f76e-4c4a-ac41-b31694ff585e";
+const DEFAULT_HEDRA_RESOLUTION = "1080p";
+const DEFAULT_HEDRA_ASPECT_RATIO = "9:16";
+const DEFAULT_FAL_TEXT_MODEL = "fal-ai/flux/schnell";
 const DEFAULT_FAL_REFERENCE_MODEL = "fal-ai/vidu/q2/reference-to-image";
 
 let cachedHedraModelId: string | null = null;
+
+type HedraModel = {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  type?: unknown;
+  aspect_ratios?: unknown;
+  resolutions?: unknown;
+  requires_start_frame?: unknown;
+  requires_end_frame?: unknown;
+  requires_input_video?: unknown;
+};
 
 function requiredImageCount(format: ImageJob["format"]) {
   if (format === "carousel") {
@@ -119,6 +135,73 @@ function getGenerationId(value: unknown) {
   return typeof id === "string" ? id : null;
 }
 
+function asStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function supportsValue(values: string[], expected: string) {
+  if (values.length === 0) {
+    return true;
+  }
+
+  return values.some((value) => value.toLowerCase() === expected.toLowerCase());
+}
+
+function getHedraModelText(model: HedraModel) {
+  return `${model.name ?? ""} ${model.description ?? ""}`.toLowerCase();
+}
+
+function isHedraImageModel(model: unknown): model is HedraModel {
+  if (!model || typeof model !== "object") {
+    return false;
+  }
+
+  const record = model as HedraModel;
+  return String(record.type ?? "").toLowerCase().includes("image");
+}
+
+function isLikelyTextToImageHedraModel(model: HedraModel) {
+  const text = getHedraModelText(model);
+
+  return (
+    !model.requires_start_frame &&
+    !model.requires_end_frame &&
+    !model.requires_input_video &&
+    !/\b(i2i|image-to-image|editing|edit)\b/.test(text)
+  );
+}
+
+function scoreHedraImageModel(model: HedraModel) {
+  const text = getHedraModelText(model);
+  const resolutions = asStringArray(model.resolutions);
+  const aspectRatios = asStringArray(model.aspect_ratios);
+  let score = 0;
+
+  if (model.id === DEFAULT_HEDRA_TEXT_TO_IMAGE_MODEL_ID) {
+    score += 100;
+  }
+
+  if (/\b(t2i|text-to-image)\b/.test(text)) {
+    score += 50;
+  }
+
+  if (supportsValue(resolutions, DEFAULT_HEDRA_RESOLUTION)) {
+    score += 20;
+  }
+
+  if (supportsValue(aspectRatios, DEFAULT_HEDRA_ASPECT_RATIO)) {
+    score += 10;
+  }
+
+  if (!isLikelyTextToImageHedraModel(model)) {
+    score -= 100;
+  }
+
+  return score;
+}
+
 async function hedraFetchJson<T>(
   path: string,
   init: RequestInit = {},
@@ -160,27 +243,27 @@ async function getHedraImageModelId() {
       : Array.isArray((modelResponse as { models?: unknown[] }).models)
         ? (modelResponse as { models: unknown[] }).models
         : [];
-  const imageModel = models.find((model) => {
-    if (!model || typeof model !== "object") {
-      return false;
-    }
+  const candidates = models
+    .filter(isHedraImageModel)
+    .filter((model) => {
+      const resolutions = asStringArray(model.resolutions);
+      const aspectRatios = asStringArray(model.aspect_ratios);
 
-    const record = model as Record<string, unknown>;
-    return String(record.type ?? record.kind ?? record.mode ?? "")
-      .toLowerCase()
-      .includes("image");
-  });
-  const fallbackModel = models[0];
+      return (
+        isLikelyTextToImageHedraModel(model) &&
+        supportsValue(resolutions, DEFAULT_HEDRA_RESOLUTION) &&
+        supportsValue(aspectRatios, DEFAULT_HEDRA_ASPECT_RATIO)
+      );
+    })
+    .sort((left, right) => scoreHedraImageModel(right) - scoreHedraImageModel(left));
   const id =
-    imageModel && typeof imageModel === "object"
-      ? (imageModel as Record<string, unknown>).id
-      : fallbackModel && typeof fallbackModel === "object"
-        ? (fallbackModel as Record<string, unknown>).id
-        : null;
+    candidates.length > 0 && typeof candidates[0].id === "string"
+      ? candidates[0].id
+      : null;
 
   if (typeof id !== "string") {
     throw new Error(
-      "Unable to determine Hedra image model. Set HEDRA_IMAGE_MODEL_ID or verify Hedra /models access.",
+      "Unable to determine a Hedra text-to-image model. Set HEDRA_IMAGE_MODEL_ID or verify Hedra /models access.",
     );
   }
 
@@ -237,8 +320,8 @@ export async function callHedraImageGenerator(input: {
       type: "image",
       ai_model_id: modelId,
       text_prompt: prompt,
-      aspect_ratio: "9:16",
-      resolution: "1080p",
+      aspect_ratio: DEFAULT_HEDRA_ASPECT_RATIO,
+      resolution: DEFAULT_HEDRA_RESOLUTION,
       batch_size: 1,
       enhance_prompt: true,
     }),
@@ -291,35 +374,56 @@ export async function callFalImageGenerator(input: {
   const apiKey = requireEnv("FAL_API_KEY");
   const prompt = buildPrompt(input.job, input.persona);
   const referenceImageUrls = input.persona.reference_image_urls ?? [];
-  const model =
-    process.env.FAL_IMAGE_MODEL ??
-    (referenceImageUrls.length > 0
-      ? DEFAULT_FAL_REFERENCE_MODEL
-      : DEFAULT_FAL_TEXT_MODEL);
+  const configuredModel = process.env.FAL_IMAGE_MODEL;
+  const candidateModels = configuredModel
+    ? [configuredModel]
+    : referenceImageUrls.length > 0
+      ? [process.env.FAL_REFERENCE_IMAGE_MODEL ?? DEFAULT_FAL_REFERENCE_MODEL, DEFAULT_FAL_TEXT_MODEL]
+      : [DEFAULT_FAL_TEXT_MODEL];
 
   fal.config({
     credentials: apiKey,
   });
 
-  const result = await withTimeout(
-    fal.subscribe(model, {
-      input: {
-        prompt,
-        aspect_ratio: "9:16",
-        ...(referenceImageUrls.length > 0 ? { reference_image_urls: referenceImageUrls } : {}),
-      },
-      logs: false,
-    }),
-    DEFAULT_FAL_TIMEOUT_MS,
-    "fal image generation",
-  );
-  const url = extractFalImageUrl(result);
+  const errors: string[] = [];
 
-  if (!url) {
-    throw new Error("fal response did not include an image URL.");
+  for (const model of candidateModels) {
+    try {
+      const usesReferenceInput =
+        model !== DEFAULT_FAL_TEXT_MODEL && referenceImageUrls.length > 0;
+      const result = await withTimeout(
+        fal.subscribe(model, {
+          input: usesReferenceInput
+            ? {
+                prompt,
+                aspect_ratio: DEFAULT_HEDRA_ASPECT_RATIO,
+                reference_image_urls: referenceImageUrls,
+              }
+            : {
+                prompt,
+                image_size: "portrait_16_9",
+                num_images: 1,
+                enable_safety_checker: true,
+                output_format: "jpeg",
+              },
+          logs: false,
+        }),
+        DEFAULT_FAL_TIMEOUT_MS,
+        `fal image generation (${model})`,
+      );
+      const url = extractFalImageUrl(result);
+
+      if (!url) {
+        throw new Error("response did not include an image URL");
+      }
+
+      return url;
+    } catch (error) {
+      errors.push(`${model}: ${getErrorMessage(error)}`);
+    }
   }
 
-  return url;
+  throw new Error(`fal image generation failed: ${errors.join(" | ")}`);
 }
 
 async function generateAndStoreWithSource(input: {
