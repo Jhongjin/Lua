@@ -1,6 +1,6 @@
 # LUA AI Influencer Automation Platform
 
-AI 버추얼 인플루언서 루아(LUA)의 콘텐츠를 기획, 생성, 후처리, 검수, 배포, 분석으로 흘려보내는 반자동 파이프라인 플랫폼입니다. 1단계는 배포 가능한 빈 골격, Supabase DB 스키마, Inngest 진입점, 인증이 걸린 검수 대시보드 셸까지 포함합니다.
+AI 버추얼 인플루언서 루아(LUA)의 콘텐츠를 기획, 생성, 후처리, 검수, 배포, 분석으로 흘려보내는 반자동 파이프라인 플랫폼입니다. 현재 범위는 기획안 생성과 이미지 에셋 경로 3-A까지 포함합니다.
 
 ## Stack
 
@@ -23,7 +23,7 @@ npm install
 cp .env.example .env.local
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY`는 서버 전용입니다. `NEXT_PUBLIC_` 접두사를 붙이거나 클라이언트 코드에서 참조하지 마세요. 로컬에서 Inngest dev server 없이 `/api/inngest`를 확인할 때는 `INNGEST_DEV=1`을 둡니다.
+`SUPABASE_SERVICE_ROLE_KEY`는 서버 전용입니다. `NEXT_PUBLIC_` 접두사를 붙이거나 클라이언트 코드에서 참조하지 마세요. 로컬에서 Inngest Dev Server를 쓸 때만 `INNGEST_DEV=http://localhost:8288`을 둡니다. Vercel Production에는 `INNGEST_DEV`를 설정하지 않습니다.
 
 3. Supabase를 준비합니다.
 
@@ -62,16 +62,63 @@ npm run dev
 
 앱은 `http://localhost:3000`에서 열립니다. 루트 경로는 `/review`로 이동하며, Supabase Auth 세션이 없으면 `/login`으로 이동합니다.
 
-## Phase 1 Scope
+## Inngest
+
+로컬 개발은 두 터미널을 사용합니다.
+
+```bash
+npm run dev
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+```
+
+Production은 Inngest Cloud의 `Apps > Sync new app`에서 Vercel production alias를 sync합니다.
+
+```text
+https://lua-jeonhongjins-projects.vercel.app/api/inngest
+```
+
+현재 등록되는 함수는 다음과 같습니다.
+
+- `lua-hello-world`
+- `lua-plan-content`
+- `lua-generate-assets`
+- `lua-edit-content`
+
+## Implemented Scope
 
 - `supabase/migrations/0001_initial_schema.sql`: 상태 기계 중심 DB 스키마
+- `supabase/migrations/0002_image_source.sql`: `image_source` enum과 `content_jobs.image_source`
 - `supabase/seed.sql`: 루아 페르소나 1건과 prompt template v1.0 placeholder
 - `src/lib/supabase`: browser anon client, server authenticated client, service role client
-- `src/inngest`: hello world function and phase 2 transition stubs
-- `src/app/(dashboard)/review`: authenticated content job list
+- `src/lib/llm/planner.ts`: Anthropic tool-use 기반 기획안 생성
+- `src/lib/assets/image.ts`: Hedra 우선, fal 폴백 이미지 생성 경계
+- `src/lib/assets/manual-upload.ts`: 수동 이미지 업로드와 `ASSETS_READY` 전이
+- `src/lib/validation`: 기획안/이미지 검증 게이트
+- `src/inngest`: 기획, 이미지 에셋, 이미지 후처리 함수
+- `src/app/(dashboard)/review`: authenticated content job list, manual upload UI
 - `src/app/api`: Inngest, webhook, cron route entrypoints
 
-실제 LLM 호출, 이미지/영상 생성, Shotstack 편집, Slack 검수 버튼, Ayrshare 게시, 성과 수집은 2단계 이후 구현합니다.
+영상 생성 및 후처리(`reels`), Slack 검수 버튼, Ayrshare 게시, 성과 수집은 이후 단계에서 구현합니다.
+
+## Image Asset Path
+
+`image_source`는 다음 값을 가집니다.
+
+- `manual`: 대시보드에서 이미지 파일 업로드 후 `ASSETS_READY -> EDITED`
+- `hedra`: Hedra API로 이미지 생성
+- `fal`: fal API로 이미지 생성
+- `auto`: Hedra 실패 또는 검증 실패 시 fal 폴백
+
+Production 자동 생성에는 아래 서버 환경변수가 필요합니다.
+
+```bash
+HEDRA_API_KEY=
+FAL_API_KEY=
+FAL_IMAGE_MODEL=
+HEDRA_IMAGE_MODEL_ID=
+```
+
+`FAL_IMAGE_MODEL`, `HEDRA_IMAGE_MODEL_ID`는 선택 값입니다. API 키가 없을 때는 수동 업로드 경로만 검증할 수 있습니다.
 
 ## Verification
 
