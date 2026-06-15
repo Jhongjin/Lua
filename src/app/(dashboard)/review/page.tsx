@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { JOB_STATUSES, type JobStatus } from "@/config/constants";
+import { triggerManualContentPlan } from "@/app/(dashboard)/review/actions";
 import { createAuthenticatedServerClient } from "@/lib/supabase/server";
 
 type ReviewPageProps = {
@@ -37,7 +38,7 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
   let query = supabase
     .from("content_jobs")
     .select(
-      "id,status,title,concept,axis,format,scheduled_at,created_at,retry_count,max_retries,error_message",
+      "id,status,title,concept,axis,format,image_prompt,instagram_caption,youtube_title,hashtags_instagram,scheduled_at,created_at,retry_count,max_retries,error_message",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -51,11 +52,21 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
-            Content Jobs
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold">검수 대시보드</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
+              Content Jobs
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold">검수 대시보드</h1>
+          </div>
+          <form action={triggerManualContentPlan}>
+            <button
+              className="h-10 rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition hover:brightness-95"
+              type="submit"
+            >
+              기획안 생성
+            </button>
+          </form>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -117,6 +128,33 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                     <div className="mt-1 line-clamp-2 text-muted">
                       {job.concept ?? job.error_message ?? job.id}
                     </div>
+                    {job.youtube_title ? (
+                      <div className="mt-2 text-sm">
+                        YouTube: {job.youtube_title}
+                      </div>
+                    ) : null}
+                    {job.instagram_caption ? (
+                      <div className="mt-2 line-clamp-2 text-muted">
+                        Instagram: {job.instagram_caption}
+                      </div>
+                    ) : null}
+                    {job.image_prompt ? (
+                      <div className="mt-2 line-clamp-2 font-mono text-xs text-muted">
+                        {job.image_prompt}
+                      </div>
+                    ) : null}
+                    {job.hashtags_instagram?.length ? (
+                      <div className="mt-2 flex max-w-xl flex-wrap gap-1">
+                        {job.hashtags_instagram.slice(0, 8).map((tag) => (
+                          <span
+                            className="rounded border border-border bg-background px-2 py-1 font-mono text-xs text-muted"
+                            key={tag}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="mt-2 font-mono text-xs text-muted">
                       {formatDate(job.created_at)}
                     </div>

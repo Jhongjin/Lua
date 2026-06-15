@@ -51,3 +51,8 @@ export const DEFAULT_TARGET_PLATFORMS = [
   "tiktok",
   "x",
 ] as const satisfies readonly Platform[];
+
+export const DEFAULT_LUA_PERSONA_ID =
+  "11111111-1111-4111-8111-111111111111";
+
+export const PLAN_CONTENT_EVENT_NAME = "lua/content.plan.requested";
