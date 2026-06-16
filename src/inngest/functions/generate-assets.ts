@@ -237,13 +237,32 @@ export const generateAssets = inngest.createFunction(
           });
         });
 
-        await step.run("request-video-generation-stub", () =>
-          requestVideoAssetGeneration({
-            job,
-            persona,
-            source: configuredVideoSource as Exclude<VideoSource, "manual">,
-          }),
+        const videoGeneration = await step.run(
+          "request-video-generation-stub",
+          async () => {
+            try {
+              const result = await requestVideoAssetGeneration({
+                job,
+                persona,
+                source: configuredVideoSource as Exclude<VideoSource, "manual">,
+              });
+
+              return {
+                ok: true as const,
+                result,
+              };
+            } catch (error) {
+              return {
+                ok: false as const,
+                message: getErrorMessage(error),
+              };
+            }
+          },
         );
+
+        if (!videoGeneration.ok) {
+          throw new Error(videoGeneration.message);
+        }
 
         throw new Error(
           "Video generation unexpectedly returned without storing an asset.",
