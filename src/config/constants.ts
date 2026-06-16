@@ -42,6 +42,9 @@ export type AssetType = (typeof ASSET_TYPES)[number];
 export const IMAGE_SOURCES = ["manual", "hedra", "fal", "auto"] as const;
 export type ImageSource = (typeof IMAGE_SOURCES)[number];
 
+export const VIDEO_SOURCES = ["manual", "veo", "auto"] as const;
+export type VideoSource = (typeof VIDEO_SOURCES)[number];
+
 export const PLATFORMS = ["instagram", "youtube", "tiktok", "x"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
@@ -66,3 +69,6 @@ export const ASSET_STORAGE_BUCKET = "lua-assets";
 export const MIN_IMAGE_WIDTH = 720;
 export const MIN_IMAGE_HEIGHT = 720;
 export const REQUIRED_CAROUSEL_IMAGE_COUNT = 2;
+export const MAX_REELS_DURATION_SECONDS = 60;
+export const TARGET_REELS_ASPECT_RATIO = 9 / 16;
+export const REELS_ASPECT_RATIO_TOLERANCE = 0.04;

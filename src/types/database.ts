@@ -175,6 +175,7 @@ export type Database = {
           title: string | null
           updated_at: string | null
           video_prompt: string | null
+          video_source: Database["public"]["Enums"]["video_source"]
           youtube_description: string | null
           youtube_title: string | null
         }
@@ -207,6 +208,7 @@ export type Database = {
           title?: string | null
           updated_at?: string | null
           video_prompt?: string | null
+          video_source?: Database["public"]["Enums"]["video_source"]
           youtube_description?: string | null
           youtube_title?: string | null
         }
@@ -239,6 +241,7 @@ export type Database = {
           title?: string | null
           updated_at?: string | null
           video_prompt?: string | null
+          video_source?: Database["public"]["Enums"]["video_source"]
           youtube_description?: string | null
           youtube_title?: string | null
         }
@@ -468,6 +471,7 @@ export type Database = {
         | "FAILED"
       platform: "instagram" | "youtube" | "tiktok" | "x"
       publication_status: "pending" | "success" | "failed"
+      video_source: "manual" | "veo" | "auto"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -618,6 +622,7 @@ export const Constants = {
       ],
       platform: ["instagram", "youtube", "tiktok", "x"],
       publication_status: ["pending", "success", "failed"],
+      video_source: ["manual", "veo", "auto"],
     },
   },
 } as const

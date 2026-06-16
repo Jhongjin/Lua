@@ -1,6 +1,6 @@
 # LUA AI Influencer Automation Platform
 
-AI 버추얼 인플루언서 루아(LUA)의 콘텐츠를 기획, 생성, 후처리, 검수, 배포, 분석으로 흘려보내는 반자동 파이프라인 플랫폼입니다. 현재 범위는 기획안 생성과 이미지 에셋 경로 3-A까지 포함합니다.
+AI 버추얼 인플루언서 루아(LUA)의 콘텐츠를 기획, 생성, 후처리, 검수, 배포, 분석으로 흘려보내는 반자동 파이프라인 플랫폼입니다. 현재 범위는 기획안 생성, 이미지 에셋 경로 3-A, 영상 수동 업로드 경로 3-B까지 포함합니다.
 
 ## Stack
 
@@ -88,12 +88,14 @@ https://lua-jeonhongjins-projects.vercel.app/api/inngest
 
 - `supabase/migrations/0001_initial_schema.sql`: 상태 기계 중심 DB 스키마
 - `supabase/migrations/0002_image_source.sql`: `image_source` enum과 `content_jobs.image_source`
+- `supabase/migrations/0003_video_source.sql`: `video_source` enum과 `content_jobs.video_source`
 - `supabase/seed.sql`: 루아 페르소나 1건과 prompt template v1.0 placeholder
 - `src/lib/supabase`: browser anon client, server authenticated client, service role client
 - `src/lib/llm/planner.ts`: Anthropic tool-use 기반 기획안 생성
 - `src/lib/assets/image.ts`: Hedra 우선, fal 폴백 이미지 생성 경계
 - `src/lib/assets/manual-upload.ts`: 수동 이미지 업로드와 `ASSETS_READY` 전이
-- `src/lib/validation`: 기획안/이미지 검증 게이트
+- `src/lib/assets/video-manual-upload.ts`: 완성 mp4 직접 업로드와 `ASSETS_READY` 전이
+- `src/lib/validation`: 기획안/이미지/영상 검증 게이트
 - `src/inngest`: 기획, 이미지 에셋, 이미지 후처리 함수
 - `src/app/(dashboard)/review`: authenticated content job list, manual upload UI
 - `src/app/api`: Inngest, webhook, cron route entrypoints
@@ -120,6 +122,18 @@ HEDRA_IMAGE_MODEL_ID=
 ```
 
 `FAL_IMAGE_MODEL`, `FAL_REFERENCE_IMAGE_MODEL`, `HEDRA_IMAGE_MODEL_ID`는 선택 값입니다. Hedra는 기본적으로 공식 예제의 text-to-image 모델을 우선 선택하고, fal은 `fal-ai/flux/schnell`을 기본 text-to-image 모델로 사용합니다. API 키가 없을 때는 수동 업로드 경로만 검증할 수 있습니다.
+
+## Video Manual Upload Path
+
+`format='reels'` 잡은 기본적으로 `video_source='manual'`입니다. 대시보드에서 완성된 9:16 mp4를 업로드하면 브라우저가 Supabase Storage signed upload URL로 직접 전송하고, 서버는 assets 기록과 `ASSETS_READY -> EDITED` 전이를 담당합니다. 업로드 영상은 자막, BGM, 포맷 보정이 이미 끝난 최종본으로 간주합니다.
+
+검증 게이트는 다음을 확인합니다.
+
+- video asset 존재와 public URL
+- 9:16 세로 비율
+- 60초 이하 길이
+
+`video_source='veo'` 또는 `video_source='auto'`는 3-B에서 의도적으로 미구현입니다. 해당 값을 지정하면 job은 명확한 "not implemented" 로그와 함께 `FAILED`가 됩니다.
 
 ## Verification
 

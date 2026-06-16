@@ -7,6 +7,10 @@ import {
   PLAN_CONTENT_EVENT_NAME,
 } from "@/config/constants";
 import { uploadManualImageAssets } from "@/lib/assets/manual-upload";
+import {
+  createManualVideoUploadTarget,
+  finalizeManualVideoUpload,
+} from "@/lib/assets/video-manual-upload";
 import { createAuthenticatedServerClient } from "@/lib/supabase/server";
 
 export async function triggerManualContentPlan() {
@@ -57,6 +61,79 @@ export async function uploadManualImagesForJob(formData: FormData) {
     jobId,
     files,
     requestedBy: user.email ?? user.id,
+  });
+
+  revalidatePath("/review");
+}
+
+async function getAuthenticatedReviewer() {
+  const supabase = await createAuthenticatedServerClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    throw new Error("Authentication required for review dashboard actions.");
+  }
+
+  return user.email ?? user.id;
+}
+
+export async function createManualVideoUploadTargetForJob(input: {
+  jobId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+}) {
+  const requestedBy = await getAuthenticatedReviewer();
+
+  if (!input.jobId) {
+    throw new Error("Missing jobId for manual video upload.");
+  }
+
+  if (!input.filename) {
+    throw new Error("Missing filename for manual video upload.");
+  }
+
+  if (!Number.isFinite(input.sizeBytes) || input.sizeBytes <= 0) {
+    throw new Error("Manual video upload file is empty.");
+  }
+
+  return createManualVideoUploadTarget({
+    jobId: input.jobId,
+    filename: input.filename,
+    contentType: input.contentType || "video/mp4",
+    requestedBy,
+  });
+}
+
+export async function finalizeManualVideoUploadForJob(input: {
+  jobId: string;
+  storagePath: string;
+  publicUrl: string;
+  filename: string;
+  contentType: string;
+  width: number;
+  height: number;
+  durationSeconds: number;
+  sizeBytes: number;
+}) {
+  const requestedBy = await getAuthenticatedReviewer();
+
+  await finalizeManualVideoUpload({
+    jobId: input.jobId,
+    storagePath: input.storagePath,
+    publicUrl: input.publicUrl,
+    filename: input.filename,
+    contentType: input.contentType || "video/mp4",
+    metadata: {
+      width: input.width,
+      height: input.height,
+      durationSeconds: input.durationSeconds,
+      sizeBytes: input.sizeBytes,
+    },
+    requestedBy,
   });
 
   revalidatePath("/review");

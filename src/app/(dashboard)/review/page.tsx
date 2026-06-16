@@ -4,6 +4,7 @@ import {
   triggerManualContentPlan,
   uploadManualImagesForJob,
 } from "@/app/(dashboard)/review/actions";
+import { VideoUploadForm } from "@/app/(dashboard)/review/video-upload-form";
 import { createAuthenticatedServerClient } from "@/lib/supabase/server";
 
 type ReviewPageProps = {
@@ -41,7 +42,7 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
   let query = supabase
     .from("content_jobs")
     .select(
-      "id,status,title,concept,axis,format,image_source,image_prompt,instagram_caption,youtube_title,hashtags_instagram,final_image_urls,scheduled_at,created_at,retry_count,max_retries,error_message,review_note",
+      "id,status,title,concept,axis,format,image_source,video_source,image_prompt,video_prompt,instagram_caption,youtube_title,hashtags_instagram,final_image_urls,final_video_url,scheduled_at,created_at,retry_count,max_retries,error_message,review_note",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -124,7 +125,9 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                   <td className="px-4 py-4 align-top font-mono text-xs">
                     {job.status}
                     <div className="mt-2 rounded border border-border bg-background px-2 py-1 text-[11px] text-muted">
-                      {job.image_source}
+                      {job.format === "reels"
+                        ? `video:${job.video_source}`
+                        : `image:${job.image_source}`}
                     </div>
                   </td>
                   <td className="max-w-lg px-4 py-4 align-top">
@@ -144,9 +147,14 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                         Instagram: {job.instagram_caption}
                       </div>
                     ) : null}
-                    {job.image_prompt ? (
+                    {job.image_prompt && job.format !== "reels" ? (
                       <div className="mt-2 line-clamp-2 font-mono text-xs text-muted">
                         {job.image_prompt}
+                      </div>
+                    ) : null}
+                    {job.video_prompt && job.format === "reels" ? (
+                      <div className="mt-2 line-clamp-2 font-mono text-xs text-muted">
+                        {job.video_prompt}
                       </div>
                     ) : null}
                     {job.hashtags_instagram?.length ? (
@@ -182,6 +190,24 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                         ))}
                       </div>
                     ) : null}
+                    {job.final_video_url ? (
+                      <div className="mt-3 max-w-xs space-y-2">
+                        <video
+                          className="aspect-[9/16] max-h-64 rounded-md border border-border bg-background object-cover"
+                          controls
+                          preload="metadata"
+                          src={job.final_video_url}
+                        />
+                        <a
+                          className="inline-flex rounded border border-border bg-background px-2 py-1 text-xs text-muted hover:text-foreground"
+                          href={job.final_video_url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          영상 열기
+                        </a>
+                      </div>
+                    ) : null}
                     {job.image_source === "manual" &&
                     ["PLANNED", "FAILED"].includes(job.status) &&
                     ["image", "carousel"].includes(job.format ?? "") ? (
@@ -204,6 +230,11 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                           이미지 업로드
                         </button>
                       </form>
+                    ) : null}
+                    {job.format === "reels" &&
+                    job.video_source === "manual" &&
+                    ["PLANNED", "FAILED"].includes(job.status) ? (
+                      <VideoUploadForm jobId={job.id} />
                     ) : null}
                   </td>
                   <td className="px-4 py-4 align-top">{job.axis ?? "-"}</td>

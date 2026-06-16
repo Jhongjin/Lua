@@ -2,12 +2,14 @@ import {
   EDIT_CONTENT_EVENT_NAME,
   GENERATE_ASSETS_EVENT_NAME,
   type ImageSource,
+  type VideoSource,
 } from "@/config/constants";
 import { inngest } from "@/inngest/client";
 import {
   acquireImageAssets,
   type ImageAssetAcquisitionResult,
 } from "@/lib/assets/image";
+import { requestVideoAssetGeneration } from "@/lib/assets/video";
 import { recordJobLog, markContentJobFailed } from "@/lib/jobs/logs";
 import { sendReviewNotification } from "@/lib/notify/slack";
 import { getSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -25,7 +27,14 @@ type GenerateAssetsEventData = {
 
 type AssetJob = Pick<
   Tables<"content_jobs">,
-  "id" | "persona_id" | "status" | "format" | "image_prompt" | "image_source"
+  | "id"
+  | "persona_id"
+  | "status"
+  | "format"
+  | "image_prompt"
+  | "image_source"
+  | "video_prompt"
+  | "video_source"
 >;
 
 type AssetPersona = Pick<
@@ -41,7 +50,7 @@ async function loadAssetContext(jobId: string) {
   const supabase = getSupabaseServiceRoleClient();
   const { data: job, error: jobError } = await supabase
     .from("content_jobs")
-    .select("id,persona_id,status,format,image_prompt,image_source")
+    .select("id,persona_id,status,format,image_prompt,image_source,video_prompt,video_source")
     .eq("id", jobId)
     .single();
 
@@ -79,6 +88,23 @@ async function setManualUploadPending(jobId: string) {
 
   if (error) {
     throw new Error(`Failed to mark manual upload pending: ${error.message}`);
+  }
+}
+
+async function setVideoManualUploadPending(jobId: string) {
+  const supabase = getSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from("content_jobs")
+    .update({
+      review_note: "영상 수동 업로드 대기",
+      error_message: null,
+    })
+    .eq("id", jobId);
+
+  if (error) {
+    throw new Error(
+      `Failed to mark manual video upload pending: ${error.message}`,
+    );
   }
 }
 
@@ -180,21 +206,73 @@ export const generateAssets = inngest.createFunction(
     }
 
     if (job.format === "reels") {
-      await step.run("log-reels-stub", () =>
-        recordJobLog({
-          jobId: job.id,
-          step: "generate_assets",
-          status: "success",
-          message: "Reels/video asset path is intentionally stubbed in 3-A.",
-        }),
-      );
+      const configuredVideoSource = job.video_source ?? "manual";
 
-      return {
-        jobId: job.id,
-        status: job.status,
-        skipped: true,
-        reason: "reels_stub",
-      };
+      if (configuredVideoSource === "manual") {
+        await step.run("mark-manual-video-upload-pending", async () => {
+          await setVideoManualUploadPending(job.id);
+          await recordJobLog({
+            jobId: job.id,
+            step: "manual_video_upload_wait",
+            status: "success",
+            message: "Manual finished mp4 upload is required before reels can continue.",
+          });
+        });
+
+        return {
+          jobId: job.id,
+          status: "PLANNED",
+          manualVideoUploadPending: true,
+        };
+      }
+
+      try {
+        await step.run("transition-video-assets-generating", async () => {
+          await transitionToAssetsGenerating(job.id);
+          await recordJobLog({
+            jobId: job.id,
+            step: "generate_video_assets",
+            status: "started",
+            message: `Generating video asset with source ${configuredVideoSource}.`,
+          });
+        });
+
+        await step.run("request-video-generation-stub", () =>
+          requestVideoAssetGeneration({
+            job,
+            persona,
+            source: configuredVideoSource as Exclude<VideoSource, "manual">,
+          }),
+        );
+
+        throw new Error(
+          "Video generation unexpectedly returned without storing an asset.",
+        );
+      } catch (error) {
+        const message = getErrorMessage(error);
+        await step.run("mark-video-generation-failed", async () => {
+          await markContentJobFailed(job.id, message);
+          await recordJobLog({
+            jobId: job.id,
+            step: "generate_video_assets",
+            status: "failed",
+            message,
+          });
+        });
+        await step.run("notify-video-generation-failed", () =>
+          sendReviewNotification({
+            title: "LUA video generation is not implemented",
+            message,
+            jobId: job.id,
+          }),
+        );
+
+        return {
+          jobId: job.id,
+          status: "FAILED",
+          reason: message,
+        };
+      }
     }
 
     const configuredSource = job.image_source;
