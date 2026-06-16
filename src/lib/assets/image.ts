@@ -135,6 +135,68 @@ function getGenerationId(value: unknown) {
   return typeof id === "string" ? id : null;
 }
 
+function getAssetId(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = record.asset_id ?? record.assetId;
+
+  return typeof id === "string" ? id : null;
+}
+
+function getObjectUrl(record: Record<string, unknown>) {
+  const asset = record.asset;
+  const nestedAssetUrl =
+    asset && typeof asset === "object"
+      ? ((asset as Record<string, unknown>).url ??
+        (asset as Record<string, unknown>).download_url)
+      : null;
+  const url =
+    nestedAssetUrl ??
+    record.url ??
+    record.download_url ??
+    record.streaming_url ??
+    record.thumbnail_url;
+
+  return typeof url === "string" && /^https?:\/\//.test(url) ? url : null;
+}
+
+function findPreferredUrl(value: unknown): string | null {
+  if (typeof value === "string" && /^https?:\/\//.test(value)) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findPreferredUrl(item);
+
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  if (value && typeof value === "object") {
+    const recordUrl = getObjectUrl(value as Record<string, unknown>);
+
+    if (recordUrl) {
+      return recordUrl;
+    }
+
+    for (const nestedValue of Object.values(value)) {
+      const found = findPreferredUrl(nestedValue);
+
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+}
+
 function asStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -282,7 +344,7 @@ async function pollHedraGeneration(generationId: string) {
     );
     const record = status as Record<string, unknown>;
     const statusText = String(record.status ?? record.state ?? "").toLowerCase();
-    const url = findFirstUrl(status);
+    const url = findPreferredUrl(status);
 
     if (
       ["complete", "completed", "succeeded", "success", "ready"].includes(
@@ -291,6 +353,35 @@ async function pollHedraGeneration(generationId: string) {
       url
     ) {
       return url;
+    }
+
+    if (
+      ["complete", "completed", "succeeded", "success", "ready"].includes(
+        statusText,
+      )
+    ) {
+      const assetId = getAssetId(status);
+
+      if (!assetId) {
+        throw new Error(
+          `Hedra generation ${generationId} completed without a URL or asset_id.`,
+        );
+      }
+
+      const assets = await hedraFetchJson<unknown>(
+        `/assets?type=image&ids=${encodeURIComponent(assetId)}`,
+        {},
+        30_000,
+      );
+      const assetUrl = findPreferredUrl(assets);
+
+      if (!assetUrl) {
+        throw new Error(
+          `Hedra generation ${generationId} completed but asset ${assetId} did not include a URL.`,
+        );
+      }
+
+      return assetUrl;
     }
 
     if (["failed", "error", "cancelled", "canceled"].includes(statusText)) {
