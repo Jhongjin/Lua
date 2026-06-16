@@ -1,4 +1,7 @@
-import { EDIT_CONTENT_EVENT_NAME } from "@/config/constants";
+import {
+  EDIT_CONTENT_EVENT_NAME,
+  REQUEST_REVIEW_EVENT_NAME,
+} from "@/config/constants";
 import { inngest } from "@/inngest/client";
 import { prepareFinalImageUrls } from "@/lib/editing/image";
 import { markContentJobFailed, recordJobLog } from "@/lib/jobs/logs";
@@ -173,6 +176,16 @@ export const editContent = inngest.createFunction(
           });
         });
 
+        await step.run("enqueue-request-review", () =>
+          inngest.send({
+            name: REQUEST_REVIEW_EVENT_NAME,
+            data: {
+              jobId: job.id,
+              source: "edit_content",
+            },
+          }),
+        );
+
         return {
           jobId: job.id,
           status: "EDITED",
@@ -197,6 +210,16 @@ export const editContent = inngest.createFunction(
           message: `Image content edited with ${finalImageUrls.length} final URL(s).`,
         });
       });
+
+      await step.run("enqueue-request-review", () =>
+        inngest.send({
+          name: REQUEST_REVIEW_EVENT_NAME,
+          data: {
+            jobId: job.id,
+            source: "edit_content",
+          },
+        }),
+      );
 
       return {
         jobId: job.id,

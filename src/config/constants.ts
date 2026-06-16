@@ -64,6 +64,8 @@ export const DEFAULT_LUA_PERSONA_ID =
 export const PLAN_CONTENT_EVENT_NAME = "lua/content.plan.requested";
 export const GENERATE_ASSETS_EVENT_NAME = "lua/assets.generate.requested";
 export const EDIT_CONTENT_EVENT_NAME = "lua/content.edit.requested";
+export const REQUEST_REVIEW_EVENT_NAME = "lua/review.requested";
+export const PUBLISH_CONTENT_EVENT_NAME = "lua/content.publish.requested";
 
 export const ASSET_STORAGE_BUCKET = "lua-assets";
 export const MIN_IMAGE_WIDTH = 720;

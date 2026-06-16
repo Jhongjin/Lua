@@ -11,6 +11,7 @@ import {
   createManualVideoUploadTarget,
   finalizeManualVideoUpload,
 } from "@/lib/assets/video-manual-upload";
+import { submitReviewDecision } from "@/lib/review/decisions";
 import { createAuthenticatedServerClient } from "@/lib/supabase/server";
 
 export async function triggerManualContentPlan() {
@@ -133,6 +134,42 @@ export async function finalizeManualVideoUploadForJob(input: {
       durationSeconds: input.durationSeconds,
       sizeBytes: input.sizeBytes,
     },
+    requestedBy,
+  });
+
+  revalidatePath("/review");
+}
+
+export async function approveContentJob(formData: FormData) {
+  const requestedBy = await getAuthenticatedReviewer();
+  const jobId = formData.get("jobId");
+
+  if (typeof jobId !== "string" || !jobId) {
+    throw new Error("Missing jobId for approval.");
+  }
+
+  await submitReviewDecision({
+    jobId,
+    decision: "approve",
+    requestedBy,
+  });
+
+  revalidatePath("/review");
+}
+
+export async function rejectContentJob(formData: FormData) {
+  const requestedBy = await getAuthenticatedReviewer();
+  const jobId = formData.get("jobId");
+  const reviewNote = formData.get("reviewNote");
+
+  if (typeof jobId !== "string" || !jobId) {
+    throw new Error("Missing jobId for rejection.");
+  }
+
+  await submitReviewDecision({
+    jobId,
+    decision: "reject",
+    reviewNote: typeof reviewNote === "string" ? reviewNote : "",
     requestedBy,
   });
 

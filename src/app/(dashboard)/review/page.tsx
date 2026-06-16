@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { JOB_STATUSES, type JobStatus } from "@/config/constants";
 import {
+  approveContentJob,
+  rejectContentJob,
   triggerManualContentPlan,
   uploadManualImagesForJob,
 } from "@/app/(dashboard)/review/actions";
@@ -42,7 +44,7 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
   let query = supabase
     .from("content_jobs")
     .select(
-      "id,status,title,concept,axis,format,image_source,video_source,image_prompt,video_prompt,instagram_caption,youtube_title,hashtags_instagram,final_image_urls,final_video_url,scheduled_at,created_at,retry_count,max_retries,error_message,review_note",
+      "id,status,title,concept,axis,format,image_source,video_source,image_prompt,video_prompt,instagram_caption,youtube_title,youtube_description,hashtags_instagram,hashtags_youtube,target_platforms,final_image_urls,final_video_url,scheduled_at,created_at,retry_count,max_retries,error_message,review_note",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -143,8 +145,16 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                       </div>
                     ) : null}
                     {job.instagram_caption ? (
-                      <div className="mt-2 line-clamp-2 text-muted">
+                      <div className="mt-2 text-muted">
                         Instagram: {job.instagram_caption}
+                      </div>
+                    ) : null}
+                    {job.youtube_description &&
+                    ["PENDING_REVIEW", "APPROVED", "REJECTED"].includes(
+                      job.status,
+                    ) ? (
+                      <div className="mt-2 line-clamp-2 text-muted">
+                        YouTube description: {job.youtube_description}
                       </div>
                     ) : null}
                     {job.image_prompt && job.format !== "reels" ? (
@@ -169,6 +179,26 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                         ))}
                       </div>
                     ) : null}
+                    {job.hashtags_youtube?.length &&
+                    ["PENDING_REVIEW", "APPROVED", "REJECTED"].includes(
+                      job.status,
+                    ) ? (
+                      <div className="mt-2 flex max-w-xl flex-wrap gap-1">
+                        {job.hashtags_youtube.slice(0, 8).map((tag) => (
+                          <span
+                            className="rounded border border-border bg-background px-2 py-1 font-mono text-xs text-muted"
+                            key={tag}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {job.target_platforms?.length ? (
+                      <div className="mt-2 font-mono text-xs text-muted">
+                        Platforms: {job.target_platforms.join(", ")}
+                      </div>
+                    ) : null}
                     <div className="mt-2 font-mono text-xs text-muted">
                       {formatDate(job.created_at)}
                     </div>
@@ -176,17 +206,25 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                       <div className="mt-2 text-sm text-muted">{job.review_note}</div>
                     ) : null}
                     {job.final_image_urls?.length ? (
-                      <div className="mt-2 flex flex-wrap gap-1">
+                      <div className="mt-3 flex flex-wrap gap-3">
                         {job.final_image_urls.map((url, index) => (
-                          <a
-                            className="rounded border border-border bg-background px-2 py-1 text-xs text-muted hover:text-foreground"
-                            href={url}
-                            key={url}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            Final {index + 1}
-                          </a>
+                          <div className="space-y-1" key={url}>
+                            <a href={url} rel="noreferrer" target="_blank">
+                              <img
+                                alt={`Final image ${index + 1}`}
+                                className="h-36 w-24 rounded-md border border-border bg-background object-cover"
+                                src={url}
+                              />
+                            </a>
+                            <a
+                              className="block rounded border border-border bg-background px-2 py-1 text-center text-xs text-muted hover:text-foreground"
+                              href={url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Final {index + 1}
+                            </a>
+                          </div>
                         ))}
                       </div>
                     ) : null}
@@ -246,22 +284,42 @@ export default async function ReviewPage({ searchParams }: ReviewPageProps) {
                     {job.retry_count ?? 0}/{job.max_retries ?? 3}
                   </td>
                   <td className="px-4 py-4 align-top">
-                    <div className="flex gap-2">
-                      <button
-                        className="h-9 rounded-md border border-border px-3 text-sm text-muted"
-                        disabled
-                        type="button"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="h-9 rounded-md border border-border px-3 text-sm text-muted"
-                        disabled
-                        type="button"
-                      >
-                        Reject
-                      </button>
-                    </div>
+                    {job.status === "PENDING_REVIEW" ? (
+                      <div className="min-w-52 space-y-3">
+                        <form action={approveContentJob}>
+                          <input name="jobId" type="hidden" value={job.id} />
+                          <button
+                            className="h-9 w-full rounded-md bg-accent px-3 text-sm font-semibold text-accent-foreground transition hover:brightness-95"
+                            type="submit"
+                          >
+                            Approve
+                          </button>
+                        </form>
+                        <form action={rejectContentJob} className="space-y-2">
+                          <input name="jobId" type="hidden" value={job.id} />
+                          <textarea
+                            className="min-h-20 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                            name="reviewNote"
+                            placeholder="반려 사유"
+                            required
+                          />
+                          <button
+                            className="h-9 w-full rounded-md border border-border px-3 text-sm text-muted transition hover:bg-surface-muted"
+                            type="submit"
+                          >
+                            Reject
+                          </button>
+                        </form>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted">
+                        {job.status === "APPROVED"
+                          ? "Approved"
+                          : job.status === "REJECTED"
+                            ? "Rejected"
+                            : "Pending"}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
